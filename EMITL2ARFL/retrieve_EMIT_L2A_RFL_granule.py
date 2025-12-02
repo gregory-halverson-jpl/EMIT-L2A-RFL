@@ -6,6 +6,7 @@ import earthaccess
 from .constants import *
 from .EMITL2ARFLGranule import EMITL2ARFLGranule
 from .find_EMIT_L2A_RFL_granule import find_EMIT_L2A_RFL_granule
+from .validate_NetCDF_file import validate_NetCDF_file
 
 def retrieve_EMIT_L2A_RFL_granule(
         remote_granule: earthaccess.search.DataGranule = None,
@@ -73,6 +74,15 @@ def retrieve_EMIT_L2A_RFL_granule(
 
     if missing_files:
         raise FileNotFoundError(f"The following required files do not exist: {missing_files}")
+
+    if not validate_NetCDF_file(reflectance_filename):
+        raise ValueError(f"Reflectance file is not a valid NetCDF file: {reflectance_filename}")
+    
+    if not validate_NetCDF_file(mask_filename):
+        raise ValueError(f"Mask file is not a valid NetCDF file: {mask_filename}")
+    
+    if not validate_NetCDF_file(uncertainty_filename):
+        raise ValueError(f"Uncertainty file is not a valid NetCDF file: {uncertainty_filename}")
 
     local_granule = EMITL2ARFLGranule(
         reflectance_filename=reflectance_filename,

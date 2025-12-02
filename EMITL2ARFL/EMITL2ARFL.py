@@ -28,4 +28,5 @@ from .search_earthaccess_granules import *
 from .show_netcdf_tree import *
 from .spatially_constrain_earthaccess_query import *
 from .temporally_constrain_earthaccess_query import *
+from .validate_NetCDF_file import *
 from .version import __version__
