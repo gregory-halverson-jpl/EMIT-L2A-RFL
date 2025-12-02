@@ -3,11 +3,14 @@ from datetime import date, datetime
 
 import rasters as rt
 from rasters import MultiRaster, Point, Polygon, RasterGeometry
+import logging
 
 from .constants import *
 from .exceptions import *
 from .search_EMIT_L2A_RFL_granules import search_EMIT_L2A_RFL_granules
 from .retrieve_EMIT_L2A_RFL_granule import retrieve_EMIT_L2A_RFL_granule
+
+logger = logging.getLogger(__name__)
 
 def retrieve_EMIT_L2A_RFL(
         date_UTC: Union[date, datetime, str],
@@ -21,6 +24,8 @@ def retrieve_EMIT_L2A_RFL(
     
     if len(search_results) == 0:
         raise EMITNotAvailable(f"No EMIT L2A RFL granules found for date {date_UTC} and specified geometry.")
+    
+    logger.info(f"found {len(search_results)} granules for date {date_UTC}")
     
     granules = [
         retrieve_EMIT_L2A_RFL_granule(
