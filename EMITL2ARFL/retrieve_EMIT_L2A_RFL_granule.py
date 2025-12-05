@@ -113,8 +113,16 @@ def retrieve_EMIT_L2A_RFL_granule(
         for filepath, file_type in file_info.values():
             try:
                 validate_NetCDF_file(filepath, file_type=file_type)
+                logger.info(f"Cached file validated successfully: {filepath}")
             except NetCDFValidationError as e:
-                logger.warning(f"Validation failed: {e}")
+                logger.warning(f"Cached file validation failed: {e}")
+                # Remove corrupted cached file immediately to force re-download
+                if exists(filepath):
+                    logger.info(f"Removing corrupted cached file: {filepath}")
+                    if safe_file_remove(filepath, max_attempts=3):
+                        logger.info(f"Corrupted file removed successfully")
+                    else:
+                        logger.error(f"Could not remove corrupted file - will attempt download anyway")
                 files_to_download.append(filepath)
     else:
         logger.warning("Validation is SKIPPED - files may be corrupted!")
@@ -131,13 +139,6 @@ def retrieve_EMIT_L2A_RFL_granule(
             wait_time = retry_delay * (2 ** (retry_count - 1))  # Exponential backoff
             logger.info(f"Waiting {wait_time:.1f} seconds before retry {retry_count + 1}...")
             time.sleep(wait_time)
-        
-        # Remove corrupted files before re-downloading
-        for filepath in files_to_download:
-            if exists(filepath):
-                logger.info(f"Removing corrupted file: {filepath}")
-                if not safe_file_remove(filepath, max_attempts=3):
-                    logger.error(f"Could not remove corrupted file: {filepath}")
         
         # Force filesystem sync (important for HPC/network filesystems)
         try:
@@ -169,8 +170,13 @@ def retrieve_EMIT_L2A_RFL_granule(
             for filepath, file_type in file_info.values():
                 try:
                     validate_NetCDF_file(filepath, file_type=file_type)
+                    logger.info(f"Downloaded file validated successfully: {filepath}")
                 except NetCDFValidationError as e:
                     logger.warning(f"Validation failed after download attempt: {e}")
+                    # File still corrupted after download - remove it for next retry
+                    if exists(filepath):
+                        logger.info(f"Removing still-corrupted file for retry: {filepath}")
+                        safe_file_remove(filepath, max_attempts=3)
                     files_to_download.append(filepath)
         
         if not files_to_download:
