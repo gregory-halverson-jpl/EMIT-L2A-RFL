@@ -17,7 +17,8 @@ def retrieve_EMIT_L2A_RFL(
         geometry: Union[Point, Polygon, RasterGeometry],
         download_directory: str = DOWNLOAD_DIRECTORY,
         max_retries: int = 3,
-        retry_delay: float = 2.0) -> MultiRaster:
+        retry_delay: float = 2.0,
+        threads: int = 1) -> MultiRaster:
     search_results = search_EMIT_L2A_RFL_granules(
         start_UTC=date_UTC,
         end_UTC=date_UTC,
@@ -34,7 +35,8 @@ def retrieve_EMIT_L2A_RFL(
             remote_granule=search_result,
             download_directory=download_directory,
             max_retries=max_retries,
-            retry_delay=retry_delay
+            retry_delay=retry_delay,
+            threads=threads
         ) 
         for search_result 
         in search_results

@@ -19,7 +19,8 @@ def generate_EMIT_L2A_RFL_timeseries(
         output_directory: str,
         download_directory: str = DOWNLOAD_DIRECTORY,
         max_retries: int = 3,
-        retry_delay: float = 2.0) -> List[str]:
+        retry_delay: float = 2.0,
+        threads: int = 1) -> List[str]:
     logger.info(f"generating EMIT L2A RFL timeseries from {start_date_UTC} to {end_date_UTC}")
     
     filenames = []
@@ -46,7 +47,8 @@ def generate_EMIT_L2A_RFL_timeseries(
                 geometry=geometry,
                 download_directory=download_directory,
                 max_retries=max_retries,
-                retry_delay=retry_delay
+                retry_delay=retry_delay,
+                threads=threads
             )
             
             logger.info(f"saving merged cube: {output_filename}")

@@ -23,7 +23,8 @@ def retrieve_EMIT_L2A_RFL_granule(
         download_directory: str = DOWNLOAD_DIRECTORY,
         max_retries: int = 3,
         retry_delay: float = 2.0,
-        skip_validation: bool = False) -> EMITL2ARFLGranule:
+        skip_validation: bool = False,
+        threads: int = 1) -> EMITL2ARFLGranule:
     """
     Retrieve an EMIT L2A Reflectance granule with resilient error handling and retry logic.
 
@@ -41,6 +42,8 @@ def retrieve_EMIT_L2A_RFL_granule(
         retry_delay (float, optional): Seconds to wait between retry attempts. Useful for HPC environments. Defaults to 2.0.
         skip_validation (bool, optional): If True, skip NetCDF validation (use with caution). Defaults to False.
             Only use this if you're experiencing persistent corruption and want to attempt processing anyway.
+        threads (int, optional): Number of parallel download threads. Defaults to 1 (single-threaded) for maximum
+            reliability on HPC/network filesystems. Set to 8 for faster downloads on local systems with stable storage.
 
     Returns:
         EMITL2ARFLGranule: The retrieved EMIT L2A Reflectance granule wrapped in an EMITL2ARFLGranule object.
@@ -82,13 +85,12 @@ def retrieve_EMIT_L2A_RFL_granule(
     def _download_files(urls: List[str], retry_attempt: int = 0) -> bool:
         """Download files from URLs to the granule directory."""
         try:
-            logger.info(f"Downloading granule files (attempt {retry_attempt + 1}/{max_retries})...")
+            # Use the specified number of threads (default 1 for HPC safety)
+            # Single-threaded is more reliable on network filesystems
+            actual_threads = threads
+            logger.info(f"Downloading granule files (attempt {retry_attempt + 1}/{max_retries}, threads={actual_threads})...")
             
-            # For retries, use single-threaded downloads to reduce corruption risk
-            # Multi-threaded downloads can cause issues on some HPC filesystems
-            threads = 1 if retry_attempt > 0 else 8
-            
-            earthaccess.download(urls, local_path=abs_directory, threads=threads)
+            earthaccess.download(urls, local_path=abs_directory, threads=actual_threads)
             return True
         except Exception as e:
             logger.error(f"Download failed: {e}")
