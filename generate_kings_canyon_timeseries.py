@@ -48,6 +48,7 @@ filenames = generate_EMIT_L2A_RFL_timeseries(
     start_date_UTC=start_date_UTC,
     end_date_UTC=end_date_UTC,
     geometry=grid,
+    download_directory=download_directory,
     output_directory=output_directory
 )
 
