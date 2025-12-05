@@ -13,7 +13,9 @@ If you can open NetCDF files in iPython but your scripts fail with HDF errors, t
 
 ### Solution 1: Disable File Locking (Recommended)
 
-#### Option A: Set Environment Variable Before Running Script
+**CRITICAL:** The environment variable MUST be set BEFORE Python starts, not within Python code. Setting it in Python code is often too late because the HDF5 library initializes when netCDF4 is first imported.
+
+#### Option A: Set Environment Variable at Shell Level (Most Reliable)
 
 Add this to your `~/.bashrc` or `~/.bash_profile` (or `~/.zshrc` for zsh):
 
@@ -26,32 +28,29 @@ Then reload your shell:
 source ~/.bashrc
 ```
 
-Or set it temporarily for a single run:
+#### Option B: Set Before Running Script (For Testing)
+
+Set it in the same command line BEFORE running Python:
 ```bash
 HDF5_USE_FILE_LOCKING=FALSE python test_file_validation.py
 ```
 
-#### Option B: Set in Python Script (Before Any Imports)
-
-**Critical:** This must be done BEFORE importing netCDF4 or any packages that use it:
-
-```python
-#!/usr/bin/env python
-import os
-
-# MUST BE FIRST - before any imports that use HDF5/NetCDF4
-os.environ['HDF5_USE_FILE_LOCKING'] = 'FALSE'
-
-# Now safe to import EMITL2ARFL and other packages
-from EMITL2ARFL import validate_NetCDF_file
-
-filename = "~/data/EMIT_L2A_RFL_001_20230129T004447_2302816_003.nc"
-validate_NetCDF_file(filename)
+**Important:** This will NOT work:
+```bash
+# WRONG - too late!
+python -c "import os; os.environ['HDF5_USE_FILE_LOCKING']='FALSE'; exec(open('test_file_validation.py').read())"
 ```
 
-#### Option C: Add to Job Scripts
+#### Option C: Use the HPC Test Wrapper (Easiest)
 
-For SLURM jobs:
+```bash
+conda activate EMITL2ARFL
+./test_hpc.sh
+```
+
+This wrapper script ensures the environment variable is set at the shell level before Python starts.
+
+#### Option D: Add to Job Scripts
 ```bash
 #!/bin/bash
 #SBATCH --job-name=emit_process
@@ -81,15 +80,19 @@ cd $PBS_O_WORKDIR
 python generate_kings_canyon_timeseries.py
 ```
 
-### Solution 2: Use the Modified Test Script
+### Solution 2: Use the HPC Test Wrapper
 
-I've created [test_file_validation_hpc.py](test_file_validation_hpc.py) that includes the workaround:
+The [test_hpc.sh](test_hpc.sh) wrapper ensures proper environment setup:
 
 ```bash
-python test_file_validation_hpc.py
+conda activate EMITL2ARFL
+./test_hpc.sh
 ```
 
-This script sets `HDF5_USE_FILE_LOCKING=FALSE` before importing any libraries.
+This script:
+- Sets `HDF5_USE_FILE_LOCKING=FALSE` at shell level (before Python starts)
+- Verifies the conda environment is activated
+- Runs the test and provides clear diagnostics
 
 ### Solution 3: Diagnose Your Specific Issue
 
@@ -111,7 +114,25 @@ This will:
 When you start iPython, you might:
 1. Have `HDF5_USE_FILE_LOCKING=FALSE` already set in your `.bashrc`
 2. Import packages in a different order
-3. Have the environment variable set from a previous session
+3. Have Setting in Python Code Often Doesn't Work
+
+You might see code that tries to set the environment variable in Python:
+
+```python
+import os
+os.environ['HDF5_USE_FILE_LOCKING'] = 'FALSE'
+```
+
+**This often fails on HPC systems because:**
+
+1. The HDF5 library initializes when netCDF4 is first imported
+2. If any module has already imported netCDF4 (directly or indirectly), it's too late
+3. The EMITL2ARFL package imports netCDF4 during its initialization
+4. By the time your script sets the variable, netCDF4 is already loaded
+
+**The solution:** Set the environment variable at the **shell level** before Python starts, not within Python code.
+
+### Why the environment variable set from a previous session
 4. Be using a different conda environment
 
 To check your iPython environment:
@@ -123,7 +144,11 @@ print(os.environ.get('HDF5_USE_FILE_LOCKING', 'not set'))
 
 ### Verification Steps
 
-After applying the fix:
+After applying the fix (make sure conda environment is activated first!):
+
+```bash
+conda activate EMITL2ARFL
+```
 
 1. **Test the original script:**
    ```bash
@@ -136,6 +161,9 @@ After applying the fix:
    ```
 
 3. **Verify in iPython:**
+   ```bash
+   ipython
+   ```
    ```python
    import os
    os.environ['HDF5_USE_FILE_LOCKING'] = 'FALSE'
@@ -214,20 +242,48 @@ Now the environment variable will be set automatically whenever you activate the
 | Problem | Solution |
 |---------|----------|
 | Script fails, iPython works | Set `HDF5_USE_FILE_LOCKING=FALSE` |
-| "HDF error -101" | Set `HDF5_USE_FILE_LOCKING=FALSE` |
-| "NetCDF: HDF error" | Set `HDF5_USE_FILE_LOCKING=FALSE` |
-| Works locally, fails on HPC | Set `HDF5_USE_FILE_LOCKING=FALSE` |
-| File opens in `h5py` but not `netCDF4` | Check import order, set env var first |
+**First, activate the conda environment:**
+```bash
+conda activate EMITL2ARFL
+```
 
-### Testing Your Fix
-
-Run all three test approaches:
+**Then run all three test approaches:**
 
 ```bash
 # 1. Original test (should now work)
 python test_file_validation.py
 
 # 2. HPC-aware test
+python test_file_validation_hpc.py
+
+# 3. Full diagnostic
+python debug_hpc_environment.py ~/data/EMIT_L2A_RFL_001_20230129T004447_2302816_003.nc
+```
+
+All three should succeed after applying the fix.
+
+### Common Mistake: Wrong Python Environment
+
+If you see `ModuleNotFoundError: No module named 'netCDF4'`, you're using the wrong Python environment. Make sure to:
+
+1. **Activate the conda environment first:**
+   ```bash
+   conda activate EMITL2ARFL
+   ```
+
+2. **Verify you're using the right Python:**
+   ```bash
+   which python  # Should show path to EMITL2ARFL environment
+   ```
+
+3. **Or use the full path:**
+   ```bash
+   # Find your conda environment path
+   conda env list
+   
+   # Use full path (example)
+   ~/miniconda3/envs/EMITL2ARFL/bin/python test_file_validation_hpc.py
+   ```
 python test_file_validation_hpc.py
 
 # 3. Full diagnostic
