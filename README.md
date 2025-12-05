@@ -12,6 +12,12 @@ NASA Jet Propulsion Laboratory 329G<br>
 pip install EMITL2ARFL
 ```
 
+## HPC Compatibility
+
+This package automatically handles HDF5 file locking issues on network filesystems (NFS/Lustre/GPFS) commonly found on HPC systems. No additional configuration needed - just import and use!
+
+If you experience any issues on HPC systems, see the [HPC troubleshooting guide](HPC_QUICKSTART.md).
+
 ## References
 
 * Green, R. O., et al. (2023). Earth Surface Mineral Dust Source Investigation (EMIT) L2A Estimated Surface Reflectance and Uncertainty and Masks, Version 1. [Data set]. NASA EOSDIS Land Processes DAAC. [doi:10.5067/EMIT/EMITL2ARFL.001](https://doi.org/10.5067/EMIT/EMITL2ARFL.001)
