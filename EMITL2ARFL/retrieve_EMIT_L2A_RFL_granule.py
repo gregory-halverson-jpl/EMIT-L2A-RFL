@@ -10,6 +10,7 @@ from .constants import *
 from .EMITL2ARFLGranule import EMITL2ARFLGranule
 from .find_EMIT_L2A_RFL_granule import find_EMIT_L2A_RFL_granule
 from .validate_NetCDF_file import validate_NetCDF_file
+from .exceptions import NetCDFValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -70,17 +71,6 @@ def retrieve_EMIT_L2A_RFL_granule(
         uncertainty = next((f for f in files if '_RFLUNCERT_' in f), None)
         return reflectance, mask, uncertainty
     
-    # Helper function to validate a single file
-    def _validate_file(filepath: str, file_type: str) -> bool:
-        """Validate that a file exists and is a valid NetCDF file."""
-        if not exists(filepath):
-            logger.warning(f"{file_type} file does not exist: {filepath}")
-            return False
-        if not validate_NetCDF_file(filepath):
-            logger.warning(f"{file_type} file is corrupted: {filepath}")
-            return False
-        return True
-    
     # Helper function to download specific files
     def _download_files(urls: List[str], retry_attempt: int = 0) -> bool:
         """Download files from URLs to the granule directory."""
@@ -108,7 +98,10 @@ def retrieve_EMIT_L2A_RFL_granule(
     
     # Initial validation check
     for filepath, file_type in file_info.values():
-        if not _validate_file(filepath, file_type):
+        try:
+            validate_NetCDF_file(filepath, file_type=file_type)
+        except NetCDFValidationError as e:
+            logger.warning(f"Validation failed: {e}")
             files_to_download.append(filepath)
     
     # Retry loop for downloading/repairing files
@@ -131,7 +124,10 @@ def retrieve_EMIT_L2A_RFL_granule(
         # Re-validate files
         files_to_download = []
         for filepath, file_type in file_info.values():
-            if not _validate_file(filepath, file_type):
+            try:
+                validate_NetCDF_file(filepath, file_type=file_type)
+            except NetCDFValidationError as e:
+                logger.warning(f"Validation failed after download attempt: {e}")
                 files_to_download.append(filepath)
         
         if not files_to_download:
