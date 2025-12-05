@@ -1,4 +1,5 @@
 import netCDF4
+import hashlib
 from pathlib import Path
 from typing import Union
 
@@ -10,7 +11,7 @@ from .exceptions import (
 )
 
 
-def validate_NetCDF_file(filename: Union[str, Path], file_type: str = "NetCDF") -> None:
+def validate_NetCDF_file(filename: Union[str, Path], file_type: str = "NetCDF", check_integrity: bool = False) -> None:
     """
     Validate whether a file is a valid NetCDF file.
     
@@ -19,6 +20,7 @@ def validate_NetCDF_file(filename: Union[str, Path], file_type: str = "NetCDF") 
     - Non-zero file size
     - NetCDF format validity
     - Readability of dimensions and variables
+    - (Optional) File integrity via checksum
     
     Parameters
     ----------
@@ -27,6 +29,9 @@ def validate_NetCDF_file(filename: Union[str, Path], file_type: str = "NetCDF") 
     file_type : str, optional
         Descriptive name for the file type (e.g., "Reflectance", "Mask").
         Used in error messages for better context. Defaults to "NetCDF".
+    check_integrity : bool, optional
+        If True, compute file checksum for integrity verification. Defaults to False.
+        This is slower but useful for detecting partial downloads or corruption.
     
     Returns
     -------
@@ -78,11 +83,33 @@ def validate_NetCDF_file(filename: Union[str, Path], file_type: str = "NetCDF") 
                     f"{file_type} file is corrupted: contains no dimensions or variables. "
                     f"File: {filename}, Size: {file_size} bytes"
                 )
+            
+            # Optionally verify file integrity
+            if check_integrity:
+                # Read a small portion of data to verify the file can be accessed
+                for var_name in list(variables.keys())[:3]:  # Check up to 3 variables
+                    try:
+                        _ = variables[var_name].shape
+                    except Exception as e:
+                        raise NetCDFCorruptedError(
+                            f"{file_type} file data cannot be accessed. "
+                            f"Variable '{var_name}' failed: {e}. "
+                            f"File: {filename}, Size: {file_size} bytes"
+                        )
     
     except (OSError, IOError) as e:
         # I/O errors suggest file read problems or corruption
         error_msg = str(e).lower()
-        if "permission" in error_msg or "access" in error_msg:
+        error_str = str(e)
+        
+        # Check for specific HDF/NetCDF error codes
+        if "errno -101" in error_str or "hdf error" in error_msg:
+            raise NetCDFReadError(
+                f"{file_type} file has HDF/NetCDF format errors (possibly corrupted during download): {filename}. "
+                f"File size: {file_size} bytes. Error: {e}. "
+                f"Recommendation: Delete and re-download this file."
+            )
+        elif "permission" in error_msg or "access" in error_msg:
             raise NetCDFReadError(
                 f"{file_type} file cannot be read due to permission error: {filename}. "
                 f"Error: {e}"

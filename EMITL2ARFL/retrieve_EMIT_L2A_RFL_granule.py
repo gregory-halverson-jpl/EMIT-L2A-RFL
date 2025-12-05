@@ -1,6 +1,7 @@
 import posixpath
 import logging
-from os import remove
+import time
+from os import remove, sync
 from os.path import join, expanduser, abspath, exists
 from typing import List, Optional
 
@@ -11,6 +12,7 @@ from .EMITL2ARFLGranule import EMITL2ARFLGranule
 from .find_EMIT_L2A_RFL_granule import find_EMIT_L2A_RFL_granule
 from .validate_NetCDF_file import validate_NetCDF_file
 from .exceptions import NetCDFValidationError
+from .file_utils import safe_file_remove, wait_for_file_stability
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +21,8 @@ def retrieve_EMIT_L2A_RFL_granule(
         orbit: int = None,
         scene: int = None, 
         download_directory: str = DOWNLOAD_DIRECTORY,
-        max_retries: int = 3) -> EMITL2ARFLGranule:
+        max_retries: int = 3,
+        retry_delay: float = 2.0) -> EMITL2ARFLGranule:
     """
     Retrieve an EMIT L2A Reflectance granule with resilient error handling and retry logic.
 
@@ -34,6 +37,7 @@ def retrieve_EMIT_L2A_RFL_granule(
         scene (int, optional): The scene number to search for the granule. Defaults to None.
         download_directory (str, optional): The directory to download the granule files to. Defaults to DOWNLOAD_DIRECTORY.
         max_retries (int, optional): Maximum number of retry attempts for downloading corrupted files. Defaults to 3.
+        retry_delay (float, optional): Seconds to wait between retry attempts. Useful for HPC environments. Defaults to 2.0.
 
     Returns:
         EMITL2ARFLGranule: The retrieved EMIT L2A Reflectance granule wrapped in an EMITL2ARFLGranule object.
@@ -107,19 +111,42 @@ def retrieve_EMIT_L2A_RFL_granule(
     # Retry loop for downloading/repairing files
     retry_count = 0
     while files_to_download and retry_count < max_retries:
+        # Wait before retry (except on first attempt)
+        if retry_count > 0:
+            wait_time = retry_delay * (2 ** (retry_count - 1))  # Exponential backoff
+            logger.info(f"Waiting {wait_time:.1f} seconds before retry {retry_count + 1}...")
+            time.sleep(wait_time)
+        
         # Remove corrupted files before re-downloading
         for filepath in files_to_download:
             if exists(filepath):
                 logger.info(f"Removing corrupted file: {filepath}")
-                try:
-                    remove(filepath)
-                except Exception as e:
-                    logger.error(f"Failed to remove corrupted file {filepath}: {e}")
+                if not safe_file_remove(filepath, max_attempts=3):
+                    logger.error(f"Could not remove corrupted file: {filepath}")
+        
+        # Force filesystem sync (important for HPC/network filesystems)
+        try:
+            sync()
+        except Exception:
+            pass  # sync() may not be available on all systems
         
         # Download all files (earthaccess will skip existing valid files)
         if not _download_files(remote_granule.data_links(), retry_count):
             retry_count += 1
             continue
+        
+        # Wait for files to stabilize (important for network filesystems)
+        logger.info("Waiting for downloaded files to stabilize...")
+        for filepath in [reflectance_filename, mask_filename, uncertainty_filename]:
+            if exists(filepath):
+                wait_for_file_stability(filepath, check_interval=0.5, max_checks=6)
+        
+        # Force filesystem sync after download
+        try:
+            sync()
+            time.sleep(0.5)  # Brief pause to ensure file writes complete
+        except Exception:
+            pass
         
         # Re-validate files
         files_to_download = []
