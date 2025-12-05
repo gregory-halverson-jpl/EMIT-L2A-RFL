@@ -22,7 +22,8 @@ def retrieve_EMIT_L2A_RFL_granule(
         scene: int = None, 
         download_directory: str = DOWNLOAD_DIRECTORY,
         max_retries: int = 3,
-        retry_delay: float = 2.0) -> EMITL2ARFLGranule:
+        retry_delay: float = 2.0,
+        skip_validation: bool = False) -> EMITL2ARFLGranule:
     """
     Retrieve an EMIT L2A Reflectance granule with resilient error handling and retry logic.
 
@@ -38,6 +39,8 @@ def retrieve_EMIT_L2A_RFL_granule(
         download_directory (str, optional): The directory to download the granule files to. Defaults to DOWNLOAD_DIRECTORY.
         max_retries (int, optional): Maximum number of retry attempts for downloading corrupted files. Defaults to 3.
         retry_delay (float, optional): Seconds to wait between retry attempts. Useful for HPC environments. Defaults to 2.0.
+        skip_validation (bool, optional): If True, skip NetCDF validation (use with caution). Defaults to False.
+            Only use this if you're experiencing persistent corruption and want to attempt processing anyway.
 
     Returns:
         EMITL2ARFLGranule: The retrieved EMIT L2A Reflectance granule wrapped in an EMITL2ARFLGranule object.
@@ -80,7 +83,12 @@ def retrieve_EMIT_L2A_RFL_granule(
         """Download files from URLs to the granule directory."""
         try:
             logger.info(f"Downloading granule files (attempt {retry_attempt + 1}/{max_retries})...")
-            earthaccess.download(urls, local_path=abs_directory)
+            
+            # For retries, use single-threaded downloads to reduce corruption risk
+            # Multi-threaded downloads can cause issues on some HPC filesystems
+            threads = 1 if retry_attempt > 0 else 8
+            
+            earthaccess.download(urls, local_path=abs_directory, threads=threads)
             return True
         except Exception as e:
             logger.error(f"Download failed: {e}")
@@ -100,13 +108,20 @@ def retrieve_EMIT_L2A_RFL_granule(
         'uncertainty': (uncertainty_filename, 'Uncertainty')
     }
     
-    # Initial validation check
-    for filepath, file_type in file_info.values():
-        try:
-            validate_NetCDF_file(filepath, file_type=file_type)
-        except NetCDFValidationError as e:
-            logger.warning(f"Validation failed: {e}")
-            files_to_download.append(filepath)
+    # Initial validation check (unless validation is skipped)
+    if not skip_validation:
+        for filepath, file_type in file_info.values():
+            try:
+                validate_NetCDF_file(filepath, file_type=file_type)
+            except NetCDFValidationError as e:
+                logger.warning(f"Validation failed: {e}")
+                files_to_download.append(filepath)
+    else:
+        logger.warning("Validation is SKIPPED - files may be corrupted!")
+        # Check if files exist but don't validate them
+        for filepath, file_type in file_info.values():
+            if not exists(filepath):
+                files_to_download.append(filepath)
     
     # Retry loop for downloading/repairing files
     retry_count = 0
@@ -148,14 +163,15 @@ def retrieve_EMIT_L2A_RFL_granule(
         except Exception:
             pass
         
-        # Re-validate files
+        # Re-validate files (unless validation is skipped)
         files_to_download = []
-        for filepath, file_type in file_info.values():
-            try:
-                validate_NetCDF_file(filepath, file_type=file_type)
-            except NetCDFValidationError as e:
-                logger.warning(f"Validation failed after download attempt: {e}")
-                files_to_download.append(filepath)
+        if not skip_validation:
+            for filepath, file_type in file_info.values():
+                try:
+                    validate_NetCDF_file(filepath, file_type=file_type)
+                except NetCDFValidationError as e:
+                    logger.warning(f"Validation failed after download attempt: {e}")
+                    files_to_download.append(filepath)
         
         if not files_to_download:
             logger.info("All files successfully downloaded and validated.")
@@ -163,12 +179,23 @@ def retrieve_EMIT_L2A_RFL_granule(
         
         retry_count += 1
     
-    # Final validation - raise error if any files are still invalid
-    if files_to_download:
-        raise FileNotFoundError(
+    # Final validation - raise error if any files are still invalid (unless validation is skipped)
+    if files_to_download and not skip_validation:
+        error_msg = (
             f"Failed to download valid files after {max_retries} attempts. "
-            f"Missing or corrupted files: {files_to_download}"
+            f"Missing or corrupted files: {files_to_download}\n\n"
+            f"TROUBLESHOOTING STEPS:\n"
+            f"1. Files are consistently corrupted - this suggests an HPC/network filesystem issue\n"
+            f"2. Try downloading to local scratch space instead of network storage:\n"
+            f"   download_directory='/tmp/emit_download'\n"
+            f"3. Increase retries and delays:\n"
+            f"   max_retries=10, retry_delay=10.0\n"
+            f"4. Try single-threaded downloads by setting threads=1 in earthaccess.download()\n"
+            f"5. As a last resort, you can skip validation (files may still be unusable):\n"
+            f"   retrieve_EMIT_L2A_RFL_granule(..., skip_validation=True)\n"
+            f"6. Contact your HPC support team - this may indicate storage system issues"
         )
+        raise FileNotFoundError(error_msg)
     
     # Create and return the granule object
     local_granule = EMITL2ARFLGranule(
