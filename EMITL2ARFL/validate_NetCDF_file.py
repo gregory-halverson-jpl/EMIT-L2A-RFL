@@ -1,3 +1,5 @@
+from os.path import expanduser, abspath, exists
+
 import netCDF4
 import hashlib
 from pathlib import Path
@@ -55,16 +57,16 @@ def validate_NetCDF_file(filename: Union[str, Path], file_type: str = "NetCDF", 
     >>> validate_NetCDF_file('reflectance.nc', file_type='Reflectance')
     >>> validate_NetCDF_file('missing.nc')  # Raises NetCDFFileNotFoundError
     """
-    filename = Path(filename)
+    filename_absolute = Path(abspath(expanduser(filename)))
     
     # Check if file exists
-    if not filename.exists():
+    if not exists(filename_absolute):
         raise NetCDFFileNotFoundError(
             f"{file_type} file does not exist at path: {filename}"
         )
     
     # Check if file is empty
-    file_size = filename.stat().st_size
+    file_size = filename_absolute.stat().st_size
     if file_size == 0:
         raise NetCDFEmptyFileError(
             f"{file_type} file is empty (0 bytes): {filename}"
@@ -72,7 +74,7 @@ def validate_NetCDF_file(filename: Union[str, Path], file_type: str = "NetCDF", 
     
     # Attempt to open and validate NetCDF structure
     try:
-        with netCDF4.Dataset(filename, "r") as ds:
+        with netCDF4.Dataset(filename_absolute, "r") as ds:
             # Try to access basic attributes to ensure file is readable
             dimensions = ds.dimensions
             variables = ds.variables

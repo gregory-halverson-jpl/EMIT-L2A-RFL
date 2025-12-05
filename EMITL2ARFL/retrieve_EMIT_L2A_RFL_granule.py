@@ -73,6 +73,11 @@ def retrieve_EMIT_L2A_RFL_granule(
     base_filenames = [posixpath.basename(URL) for URL in remote_granule.data_links()]
     local_files = [join(abs_directory, fname) for fname in base_filenames]
     
+    # Log the URLs that will be checked/downloaded
+    logger.info(f"Granule URLs:")
+    for i, url in enumerate(remote_granule.data_links(), 1):
+        logger.info(f"  [{i}/{len(remote_granule.data_links())}] {url}")
+    
     # Helper function to identify file types
     def _identify_files(files: List[str]) -> tuple[Optional[str], Optional[str], Optional[str]]:
         """Identify RFL, MASK, and RFLUNCERT files from a list of filenames."""
@@ -89,6 +94,9 @@ def retrieve_EMIT_L2A_RFL_granule(
             # Single-threaded is more reliable on network filesystems
             actual_threads = threads
             logger.info(f"Downloading granule files (attempt {retry_attempt + 1}/{max_retries}, threads={actual_threads})...")
+            logger.info(f"Download directory: {abs_directory}")
+            for i, url in enumerate(urls, 1):
+                logger.info(f"  [{i}/{len(urls)}] {url}")
             
             earthaccess.download(urls, local_path=abs_directory, threads=actual_threads)
             return True
