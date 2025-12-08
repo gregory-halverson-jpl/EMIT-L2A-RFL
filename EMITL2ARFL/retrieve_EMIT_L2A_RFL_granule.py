@@ -1,10 +1,8 @@
 import posixpath
 import logging
 import time
-import subprocess
-import shutil
-from os import remove, sync, makedirs
-from os.path import join, expanduser, abspath, exists, basename
+from os import remove, sync
+from os.path import join, expanduser, abspath, exists
 from typing import List, Optional
 
 import earthaccess
@@ -27,7 +25,7 @@ def retrieve_EMIT_L2A_RFL_granule(
         retry_delay: float = 2.0,
         skip_validation: bool = False,
         threads: int = 1,
-        use_wget: bool = True) -> EMITL2ARFLGranule:
+        use_wget: bool = False) -> EMITL2ARFLGranule:
     """
     Retrieve an EMIT L2A Reflectance granule with resilient error handling and retry logic.
 
@@ -47,9 +45,9 @@ def retrieve_EMIT_L2A_RFL_granule(
             Only use this if you're experiencing persistent corruption and want to attempt processing anyway.
         threads (int, optional): Number of parallel download threads. Defaults to 1 (single-threaded) for maximum
             reliability on HPC/network filesystems. Set to 8 for faster downloads on local systems with stable storage.
-            Only used when use_wget=False.
-        use_wget (bool, optional): If True (default), use wget command-line tool for downloading. This is more
-            reliable on HPC systems. If False, use earthaccess.download(). Requires wget to be installed.
+        use_wget (bool, optional): If True, use wget command-line tool for downloading. If False (default), use 
+            earthaccess.download(). Note: wget approach is currently not implemented for NASA Earthdata authentication.
+            This parameter is reserved for future use.
 
     Returns:
         EMITL2ARFLGranule: The retrieved EMIT L2A Reflectance granule wrapped in an EMITL2ARFLGranule object.
@@ -95,67 +93,22 @@ def retrieve_EMIT_L2A_RFL_granule(
     
     # Helper function to download specific files
     def _download_files(urls: List[str], retry_attempt: int = 0) -> bool:
-        """Download files using wget or earthaccess."""
+        """Download files using earthaccess (with optional wget support for future use)."""
         try:
             if use_wget:
-                # Use wget for downloading
-                logger.info(f"Downloading with wget (attempt {retry_attempt + 1}/{max_retries})...")
-                logger.info(f"Download directory: {abs_directory}")
-                
-                # Ensure directory exists
-                makedirs(abs_directory, exist_ok=True)
-                
-                # Get authentication from earthaccess
-                auth = earthaccess.get_s3_credentials(remote_granule)
-                
-                # Download each file with wget
-                success = True
-                for i, url in enumerate(urls, 1):
-                    filename = basename(url)
-                    output_path = join(abs_directory, filename)
-                    
-                    logger.info(f"  [{i}/{len(urls)}] Downloading {filename}...")
-                    
-                    # Build wget command
-                    # Use -c for continue, -t for retries, --timeout for connection timeout
-                    wget_cmd = [
-                        'wget',
-                        '--continue',  # Resume partial downloads
-                        '--tries=3',  # Try 3 times
-                        '--timeout=30',  # 30 second timeout
-                        '--no-verbose',  # Less verbose output
-                        '-O', output_path,  # Output file
-                        url
-                    ]
-                    
-                    try:
-                        result = subprocess.run(
-                            wget_cmd,
-                            capture_output=True,
-                            text=True,
-                            check=True
-                        )
-                        logger.info(f"    ✓ Downloaded successfully")
-                    except subprocess.CalledProcessError as e:
-                        logger.error(f"    ✗ wget failed: {e.stderr}")
-                        success = False
-                    except FileNotFoundError:
-                        raise RuntimeError(
-                            "wget command not found. Please install wget or set use_wget=False. "
-                            "On most systems: 'sudo apt install wget' or 'brew install wget'"
-                        )
-                
-                return success
-            else:
-                # Use earthaccess for downloading (original method)
-                actual_threads = threads
-                logger.info(f"Downloading with earthaccess (attempt {retry_attempt + 1}/{max_retries}, threads={actual_threads})...")
-                logger.info(f"Download directory: {abs_directory}")
-                for i, url in enumerate(urls, 1):
-                    logger.info(f"  [{i}/{len(urls)}] {url}")
-                
-                earthaccess.download(urls, local_path=abs_directory, threads=actual_threads)
-                return True
+                # TODO: Implement wget support with NASA Earthdata authentication
+                # For now, fall back to earthaccess
+                logger.warning("wget download not yet implemented for NASA Earthdata - using earthaccess")
+            
+            # Use earthaccess for downloading (handles NASA authentication)
+            actual_threads = threads
+            logger.info(f"Downloading with earthaccess (attempt {retry_attempt + 1}/{max_retries}, threads={actual_threads})...")
+            logger.info(f"Download directory: {abs_directory}")
+            for i, url in enumerate(urls, 1):
+                logger.info(f"  [{i}/{len(urls)}] {url}")
+            
+            earthaccess.download(urls, local_path=abs_directory, threads=actual_threads)
+            return True
         except Exception as e:
             logger.error(f"Download failed: {e}")
             return False

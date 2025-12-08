@@ -258,7 +258,6 @@ def download_sample_granule():
         print("Downloading granule (this may take a few minutes)...")
         print(f"  Granule ID: {granules[0]['umm']['GranuleUR']}")
         print()
-        print("Using wget for download (more reliable on HPC systems)")
         print("Note: File validation is disabled during download to prevent")
         print("      automatic deletion. The diagnostic tests will validate")
         print("      the file after download completes.")
@@ -270,8 +269,7 @@ def download_sample_granule():
             remote_granule=granules[0],
             download_directory=str(download_dir),
             max_retries=1,  # Only try once since validation is disabled
-            skip_validation=True,  # Don't validate during download - we'll test it after
-            use_wget=True  # Use wget instead of earthaccess.download()
+            skip_validation=True  # Don't validate during download - we'll test it after
         )
         
         print("✓ Download successful")
