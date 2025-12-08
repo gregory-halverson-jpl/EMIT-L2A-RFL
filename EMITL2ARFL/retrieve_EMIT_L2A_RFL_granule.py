@@ -1,8 +1,10 @@
 import posixpath
 import logging
 import time
-from os import remove, sync
-from os.path import join, expanduser, abspath, exists
+import subprocess
+import shutil
+from os import remove, sync, makedirs
+from os.path import join, expanduser, abspath, exists, basename
 from typing import List, Optional
 
 import earthaccess
@@ -24,7 +26,8 @@ def retrieve_EMIT_L2A_RFL_granule(
         max_retries: int = 3,
         retry_delay: float = 2.0,
         skip_validation: bool = False,
-        threads: int = 1) -> EMITL2ARFLGranule:
+        threads: int = 1,
+        use_wget: bool = True) -> EMITL2ARFLGranule:
     """
     Retrieve an EMIT L2A Reflectance granule with resilient error handling and retry logic.
 
@@ -44,6 +47,9 @@ def retrieve_EMIT_L2A_RFL_granule(
             Only use this if you're experiencing persistent corruption and want to attempt processing anyway.
         threads (int, optional): Number of parallel download threads. Defaults to 1 (single-threaded) for maximum
             reliability on HPC/network filesystems. Set to 8 for faster downloads on local systems with stable storage.
+            Only used when use_wget=False.
+        use_wget (bool, optional): If True (default), use wget command-line tool for downloading. This is more
+            reliable on HPC systems. If False, use earthaccess.download(). Requires wget to be installed.
 
     Returns:
         EMITL2ARFLGranule: The retrieved EMIT L2A Reflectance granule wrapped in an EMITL2ARFLGranule object.
@@ -51,6 +57,7 @@ def retrieve_EMIT_L2A_RFL_granule(
     Raises:
         ValueError: If no granule is found for the provided orbit and scene, or if the provided granule is not an EMIT L2A Reflectance collection 1 granule.
         FileNotFoundError: If required files cannot be downloaded after max_retries attempts.
+        RuntimeError: If use_wget=True but wget is not available on the system.
     """
     if remote_granule is None and orbit is not None and scene is not None:
         remote_granule = find_EMIT_L2A_RFL_granule(granule=remote_granule, orbit=orbit, scene=scene)
@@ -88,16 +95,66 @@ def retrieve_EMIT_L2A_RFL_granule(
     
     # Helper function to download specific files
     def _download_files(urls: List[str], retry_attempt: int = 0) -> bool:
-        """Download files from URLs to the granule directory."""
-        try:
-            # Use the specified number of threads (default 1 for HPC safety)
-            # Single-threaded is more reliable on network filesystems
-            actual_threads = threads
-            logger.info(f"Downloading granule files (attempt {retry_attempt + 1}/{max_retries}, threads={actual_threads})...")
-            logger.info(f"Download directory: {abs_directory}")
-            for i, url in enumerate(urls, 1):
-                logger.info(f"  [{i}/{len(urls)}] {url}")
-            
+        """Dif use_wget:
+                # Use wget for downloading
+                logger.info(f"Downloading with wget (attempt {retry_attempt + 1}/{max_retries})...")
+                logger.info(f"Download directory: {abs_directory}")
+                
+                # Ensure directory exists
+                makedirs(abs_directory, exist_ok=True)
+                
+                # Get authentication from earthaccess
+                auth = earthaccess.get_s3_credentials(remote_granule)
+                
+                # Download each file with wget
+                success = True
+                for i, url in enumerate(urls, 1):
+                    filename = basename(url)
+                    output_path = join(abs_directory, filename)
+                    
+                    logger.info(f"  [{i}/{len(urls)}] Downloading {filename}...")
+                    
+                    # Build wget command
+                    # Use -c for continue, -t for retries, --timeout for connection timeout
+                    wget_cmd = [
+                        'wget',
+                        '--continue',  # Resume partial downloads
+                        '--tries=3',  # Try 3 times
+                        '--timeout=30',  # 30 second timeout
+                        '--no-verbose',  # Less verbose output
+                        '-O', output_path,  # Output file
+                        url
+                    ]
+                    
+                    try:
+                        result = subprocess.run(
+                            wget_cmd,
+                            capture_output=True,
+                            text=True,
+                            check=True
+                        )
+                        logger.info(f"    ✓ Downloaded successfully")
+                    except subprocess.CalledProcessError as e:
+                        logger.error(f"    ✗ wget failed: {e.stderr}")
+                        success = False
+                    except FileNotFoundError:
+                        raise RuntimeError(
+                            "wget command not found. Please install wget or set use_wget=False. "
+                            "On most systems: 'sudo apt install wget' or 'brew install wget'"
+                        )
+                
+                return success
+            else:
+                # Use earthaccess for downloading (original method)
+                actual_threads = threads
+                logger.info(f"Downloading with earthaccess (attempt {retry_attempt + 1}/{max_retries}, threads={actual_threads})...")
+                logger.info(f"Download directory: {abs_directory}")
+                for i, url in enumerate(urls, 1):
+                    logger.info(f"  [{i}/{len(urls)}] {url}")
+                
+                earthaccess.download(urls, local_path=abs_directory, threads=actual_threads)
+                return True
+                
             earthaccess.download(urls, local_path=abs_directory, threads=actual_threads)
             return True
         except Exception as e:
