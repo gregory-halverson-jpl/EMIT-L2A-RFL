@@ -230,18 +230,21 @@ def download_sample_granule():
         
         from EMITL2ARFL import search_EMIT_L2A_RFL_granules
         
+        # First try to search for the specific granule by orbit and scene
+        # This granule is: orbit=2302816, scene=003
         granules = search_EMIT_L2A_RFL_granules(
-            start_date_UTC=datetime(2023, 1, 29),
-            end_date_UTC=datetime(2023, 1, 29),
-            readable_granule_name="EMIT_L2A_RFL_001_20230129T004447_2302816_003"
+            start_UTC=datetime(2023, 1, 29),
+            end_UTC=datetime(2023, 1, 30),
+            orbit=2302816,
+            scene=3
         )
         
         if not granules:
-            print("✗ Sample granule not found")
+            print("✗ Specific granule not found")
             print("  Trying to find any granule from January 2023...")
             granules = search_EMIT_L2A_RFL_granules(
-                start_date_UTC=datetime(2023, 1, 20),
-                end_date_UTC=datetime(2023, 1, 31)
+                start_UTC=datetime(2023, 1, 20),
+                end_UTC=datetime(2023, 1, 31)
             )
             if granules:
                 print(f"  Found {len(granules)} granules, using first one")
