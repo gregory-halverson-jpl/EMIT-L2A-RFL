@@ -2,13 +2,34 @@
 """
 Diagnostic script to debug HPC environment issues with NetCDF file access.
 
-This script helps identify differences between interactive iPython sessions
-and script execution that might cause HDF/NetCDF errors on HPC systems.
+This script downloads a sample EMIT L2A RFL file and runs comprehensive diagnostics
+to identify any issues with the HPC environment, file access, or library configuration.
+
+Usage:
+    # Download a sample file and run diagnostics (recommended for first-time use):
+    python debug_hpc_environment.py
+    
+    # Run diagnostics on an existing file:
+    python debug_hpc_environment.py <path_to_netcdf_file>
+    
+Examples:
+    # Download and test (will authenticate with NASA Earthdata):
+    python debug_hpc_environment.py
+    
+    # Test an existing file:
+    python debug_hpc_environment.py ~/data/EMIT_L2A_RFL_001_20230129T004447_2302816_003.nc
+    
+The script will:
+    1. Download a sample EMIT L2A RFL granule to ~/data (if no file provided)
+    2. Check your environment configuration (library versions, environment variables)
+    3. Test file access with different methods (direct netCDF4, with workarounds, via EMITL2ARFL)
+    4. Provide specific recommendations for any issues found
 """
 
 import os
 import sys
 from pathlib import Path
+from datetime import datetime
 
 def print_section(title):
     """Print a formatted section header."""
@@ -186,19 +207,110 @@ def test_validate_function(filename):
         traceback.print_exc()
         return False
 
+def download_sample_granule():
+    """Download a sample EMIT L2A RFL granule for testing."""
+    print_section("DOWNLOADING SAMPLE GRANULE")
+    
+    download_dir = Path.home() / "data"
+    download_dir.mkdir(exist_ok=True)
+    
+    print(f"Download directory: {download_dir}")
+    print()
+    
+    try:
+        print("Authenticating with NASA Earthdata...")
+        import earthaccess
+        earthaccess.login()
+        print("✓ Authentication successful")
+        print()
+        
+        # Search for a specific known granule (small file from early 2023)
+        print("Searching for sample granule...")
+        print("  Looking for: EMIT_L2A_RFL_001_20230129T004447_2302816_003")
+        
+        from EMITL2ARFL import search_EMIT_L2A_RFL_granules
+        
+        granules = search_EMIT_L2A_RFL_granules(
+            start_date_UTC=datetime(2023, 1, 29),
+            end_date_UTC=datetime(2023, 1, 29),
+            readable_granule_name="EMIT_L2A_RFL_001_20230129T004447_2302816_003"
+        )
+        
+        if not granules:
+            print("✗ Sample granule not found")
+            print("  Trying to find any granule from January 2023...")
+            granules = search_EMIT_L2A_RFL_granules(
+                start_date_UTC=datetime(2023, 1, 20),
+                end_date_UTC=datetime(2023, 1, 31)
+            )
+            if granules:
+                print(f"  Found {len(granules)} granules, using first one")
+            else:
+                print("✗ No granules found")
+                return None
+        else:
+            print(f"✓ Found granule")
+        
+        print()
+        print("Downloading granule (this may take a few minutes)...")
+        print(f"  Granule ID: {granules[0]['umm']['GranuleUR']}")
+        
+        from EMITL2ARFL import retrieve_EMIT_L2A_RFL_granule
+        
+        granule = retrieve_EMIT_L2A_RFL_granule(
+            remote_granule=granules[0],
+            download_directory=str(download_dir),
+            max_retries=3,
+            threads=1  # Use single-threaded for HPC compatibility
+        )
+        
+        print("✓ Download successful")
+        print(f"  Reflectance file: {granule.reflectance_filename}")
+        print()
+        
+        return granule.reflectance_filename
+        
+    except ImportError as e:
+        print(f"✗ Cannot import required packages: {e}")
+        print("  Make sure earthaccess and EMITL2ARFL are installed")
+        return None
+    except Exception as e:
+        print(f"✗ Download failed: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
 def main():
     """Main diagnostic routine."""
     print("="*60)
     print(" HPC NetCDF Environment Diagnostic Tool")
     print("="*60)
+    print()
+    print("This tool will:")
+    print("  1. Download a sample EMIT L2A RFL file (if not provided)")
+    print("  2. Check your environment configuration")
+    print("  3. Test file access with different methods")
+    print("  4. Provide specific recommendations")
+    print()
     
-    if len(sys.argv) < 2:
-        print("\nUsage: python debug_hpc_environment.py <path_to_netcdf_file>")
-        print("\nExample:")
-        print("  python debug_hpc_environment.py ~/data/EMIT_L2A_RFL_001_20230129T004447_2302816_003.nc")
-        sys.exit(1)
-    
-    filename = sys.argv[1]
+    # Determine which file to test
+    if len(sys.argv) >= 2:
+        filename = sys.argv[1]
+        print(f"Using provided file: {filename}")
+        print()
+    else:
+        print("No file provided, will download a sample granule...")
+        print()
+        filename = download_sample_granule()
+        
+        if filename is None:
+            print()
+            print("="*60)
+            print("Could not download sample file.")
+            print("Please provide a file path manually:")
+            print("  python debug_hpc_environment.py <path_to_netcdf_file>")
+            print("="*60)
+            sys.exit(1)
     
     # Run all diagnostic checks
     check_file_details(filename)
@@ -220,23 +332,36 @@ def main():
     print(f"With file locking disabled: {'✓ PASS' if test2 else '✗ FAIL'}")
     print(f"validate_NetCDF_file function: {'✓ PASS' if test3 else '✗ FAIL'}")
     
+    print()
+    print("Note: As of the latest version, EMITL2ARFL automatically sets")
+    print("HDF5_USE_FILE_LOCKING=FALSE during import. The package should")
+    print("work without any manual environment configuration.")
+    
+    if test1 and test2 and test3:
+        print()
+        print("="*60)
+        print("🎉 ALL TESTS PASSED!")
+        print("="*60)
+        print()
+        print("Your environment is properly configured and the file is valid.")
+        print("You should be able to use EMITL2ARFL without any issues.")
+        return
+    
     if not test1 and test2:
+        print()
         print("\n⚠ RECOMMENDATION:")
         print("  The file opens successfully with HDF5_USE_FILE_LOCKING=FALSE")
         print("  This is a common issue on NFS/Lustre filesystems.")
         print()
-        print("  FIX: Add this to your ~/.bashrc on the HPC system:")
-        print("    export HDF5_USE_FILE_LOCKING=FALSE")
-        print("    source ~/.bashrc")
+        print("  The EMITL2ARFL package should handle this automatically.")
+        print("  If you're still experiencing issues:")
         print()
-        print("  Or run scripts with:")
-        print("    HDF5_USE_FILE_LOCKING=FALSE python your_script.py")
+        print("  1. Make sure you have the latest version of EMITL2ARFL")
+        print("  2. Import EMITL2ARFL before any other packages that use netCDF4")
+        print("  3. Or set the environment variable manually:")
+        print("     export HDF5_USE_FILE_LOCKING=FALSE")
         print()
-        print("  Or use the wrapper script:")
-        print("    ./test_hpc.sh")
-        print()
-        print("  NOTE: Setting os.environ in Python code is often too late!")
-        print("  The environment variable must be set BEFORE Python starts.")
+        print("  For more help, see: HPC_QUICKSTART.md")
     
     if not test1 and not test2:
         print("\n⚠ RECOMMENDATION:")

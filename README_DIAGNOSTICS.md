@@ -2,7 +2,39 @@
 
 This directory contains several diagnostic scripts to help troubleshoot HDF5 error -101 and other NetCDF-related issues on HPC systems.
 
-## Available Diagnostic Tools
+## 🆕 Recommended: All-in-One Diagnostic Tool
+
+### `debug_hpc_environment.py` (New!)
+**Purpose:** Comprehensive diagnostic with automatic file download - best for first-time setup and troubleshooting
+
+**What it does:**
+- **Automatically downloads** a sample EMIT L2A RFL file if you don't have one
+- Tests environment configuration (libraries, variables, filesystem)
+- Tests file access with multiple methods
+- Identifies HPC-specific issues (file locking, network filesystems)
+- Provides specific, actionable recommendations
+- Works on both local machines and HPC systems
+
+**Usage:**
+```bash
+# Download sample file and run full diagnostics (recommended)
+conda activate EMITL2ARFL
+python debug_hpc_environment.py
+
+# Or test your own file
+python debug_hpc_environment.py ~/data/your_file.nc
+```
+
+**When to use:**
+- First-time setup on HPC system
+- After installing/updating EMITL2ARFL
+- When experiencing "HDF Error -101"
+- Before running large processing jobs
+- Comparing local vs HPC environments
+
+---
+
+## Other Available Diagnostic Tools
 
 ### 1. `diagnose_netcdf_environment.py`
 **Purpose:** Test HDF5/NetCDF library installation and configuration
