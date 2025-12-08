@@ -95,7 +95,9 @@ def retrieve_EMIT_L2A_RFL_granule(
     
     # Helper function to download specific files
     def _download_files(urls: List[str], retry_attempt: int = 0) -> bool:
-        """Dif use_wget:
+        """Download files using wget or earthaccess."""
+        try:
+            if use_wget:
                 # Use wget for downloading
                 logger.info(f"Downloading with wget (attempt {retry_attempt + 1}/{max_retries})...")
                 logger.info(f"Download directory: {abs_directory}")
@@ -154,9 +156,6 @@ def retrieve_EMIT_L2A_RFL_granule(
                 
                 earthaccess.download(urls, local_path=abs_directory, threads=actual_threads)
                 return True
-                
-            earthaccess.download(urls, local_path=abs_directory, threads=actual_threads)
-            return True
         except Exception as e:
             logger.error(f"Download failed: {e}")
             return False
