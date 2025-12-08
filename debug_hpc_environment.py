@@ -257,18 +257,25 @@ def download_sample_granule():
         print()
         print("Downloading granule (this may take a few minutes)...")
         print(f"  Granule ID: {granules[0]['umm']['GranuleUR']}")
+        print()
+        print("Note: File validation is disabled during download to prevent")
+        print("      automatic deletion. The diagnostic tests will validate")
+        print("      the file after download completes.")
+        print()
         
         from EMITL2ARFL import retrieve_EMIT_L2A_RFL_granule
         
         granule = retrieve_EMIT_L2A_RFL_granule(
             remote_granule=granules[0],
             download_directory=str(download_dir),
-            max_retries=3,
+            max_retries=1,  # Only try once since validation is disabled
+            skip_validation=True,  # Don't validate during download - we'll test it after
             threads=1  # Use single-threaded for HPC compatibility
         )
         
         print("✓ Download successful")
         print(f"  Reflectance file: {granule.reflectance_filename}")
+        print(f"  File will remain in: {download_dir}")
         print()
         
         return granule.reflectance_filename
