@@ -1,5 +1,6 @@
 from typing import Union
 from datetime import date, datetime
+import gc
 
 import rasters as rt
 from rasters import MultiRaster, Point, Polygon, RasterGeometry
@@ -30,20 +31,32 @@ def retrieve_EMIT_L2A_RFL(
     
     logger.info(f"found {len(search_results)} granules for date {date_UTC}")
     
-    granules = [
-        retrieve_EMIT_L2A_RFL_granule(
-            remote_granule=search_result,
-            download_directory=download_directory,
-            max_retries=max_retries,
-            retry_delay=retry_delay,
-            threads=threads
-        ) 
-        for search_result 
-        in search_results
-    ]
+    # Process granules one at a time to minimize memory usage
+    subset_cubes = []
+    for search_result in search_results:
+        try:
+            granule = retrieve_EMIT_L2A_RFL_granule(
+                remote_granule=search_result,
+                download_directory=download_directory,
+                max_retries=max_retries,
+                retry_delay=retry_delay,
+                threads=threads
+            )
+            subset_cube = granule.reflectance(geometry=geometry)
+            subset_cubes.append(subset_cube)
+            # Clean up granule object immediately
+            del granule
+        except Exception as e:
+            logger.warning(f"Failed to process granule: {e}")
+            continue
     
-    subset_cubes = [granule.reflectance(geometry=geometry) for granule in granules]
+    if not subset_cubes:
+        raise EMITNotAvailable(f"No valid EMIT L2A RFL data retrieved for date {date_UTC}")
     
     merged_cube = rt.mosaic(subset_cubes, geometry=geometry)
+    
+    # Clean up subset cubes before returning
+    del subset_cubes
+    gc.collect()
 
     return merged_cube

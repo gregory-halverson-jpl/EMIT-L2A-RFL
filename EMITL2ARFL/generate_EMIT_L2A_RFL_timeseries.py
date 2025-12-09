@@ -5,6 +5,7 @@ import pandas as pd
 from rasters import RasterGeometry
 import logging
 from os.path import exists, abspath, expanduser
+import gc
 
 from .constants import *
 from .exceptions import *
@@ -55,6 +56,11 @@ def generate_EMIT_L2A_RFL_timeseries(
             # save merged cube to file
             filenames.append(output_filename)
             merged_cube.to_geotiff(output_filename)
+            
+            # Explicitly clean up to free memory
+            del merged_cube
+            gc.collect()
+            
         except EMITNotAvailable as e:
             logger.info(f"no EMIT granules available for date {date_UTC}")
             continue

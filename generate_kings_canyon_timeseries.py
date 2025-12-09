@@ -56,15 +56,5 @@ logger.info(f"Generated {len(filenames)} files:")
 for filename in filenames:
     logger.info(f"  {filename}")
 
-# Process and display each file
-logger.info("\nProcessing generated files...")
-for filename in filenames:
-    logger.info(f"\nProcessing: {filename}")
-    try:
-        raster = MultiRaster.open(filename)
-        logger.info(f"Successfully opened raster: {raster}")
-        # Note: display() function removed as it's typically for Jupyter notebooks
-        # You can add specific processing or visualization code here if needed
-    except Exception as e:
-        logger.info(f"Error processing {filename}: {e}")
+logger.info("\nTime series generation complete!")
 
