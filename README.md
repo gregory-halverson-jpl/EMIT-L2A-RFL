@@ -52,6 +52,24 @@ export HDF5_USE_FILE_LOCKING=FALSE
 
 See [diagnostics/Install HPC.md](diagnostics/Install%20HPC.md) for detailed HPC installation instructions and troubleshooting.
 
+## Caveats
+
+### Full Granule Download Requirement
+
+The current version of this package **requires downloading entire EMIT L2A RFL granules** in order to obtain spatial subsets. While the package provides functions to extract data for a specific geometry or region of interest, the spatial subsetting occurs **after** the complete granule files (reflectance, mask, and uncertainty) have been downloaded to the local filesystem.
+
+This means:
+- **Full files are downloaded**: Each granule (~300-500 MB) is downloaded in its entirety, regardless of subset size
+- **Local processing**: Spatial subsetting is performed locally after download using the geolocation information
+- **Bandwidth impact**: For small areas of interest, this results in downloading significantly more data than necessary
+
+**Workaround considerations:**
+- Cache full granules locally if processing multiple overlapping geometries, as the same granule can be reused
+- Consider the download bandwidth constraints when planning time series processing for large date ranges
+- Granules that do not intersect your geometry are skipped automatically through the search and filtering process
+
+Future versions of this package may support server-side subsetting via OGC Web Coverage Service (WCS) endpoints or cloud-native data formats (Zarr, Cloud-Optimized GeoTIFF) if such capabilities become available through NASA LPDAAC.
+
 ## Diagnostics
 
 Diagnostic tools and troubleshooting guides are available in the [diagnostics/](diagnostics/) folder:
