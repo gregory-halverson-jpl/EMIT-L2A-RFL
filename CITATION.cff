@@ -1,0 +1,22 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "EMIT-L2A-RFL"
+abstract: "Python package for searching, downloading, and processing NASA EMIT L2A Estimated Surface Reflectance data products."
+type: software
+authors:
+  - family-names: "Halverson"
+    given-names: "Gregory H."
+    email: "gregory.h.halverson@jpl.nasa.gov"
+    affiliation: "NASA Jet Propulsion Laboratory"
+version: "1.0.1"
+date-released: "2026-05-05"
+license: "Apache-2.0"
+repository-code: "https://github.com/STARS-Data-Fusion/EMIT-L2A-RFL"
+url: "https://github.com/STARS-Data-Fusion/EMIT-L2A-RFL"
+keywords:
+  - "EMIT"
+  - "Earth Surface Mineral Dust Source Investigation"
+  - "surface reflectance"
+  - "remote sensing"
+  - "hyperspectral"
+  - "NASA"

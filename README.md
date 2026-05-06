@@ -135,6 +135,29 @@ Diagnostic tools and troubleshooting guides are available in the [diagnostics/](
 - **check_hdf5_version.py** - Display library versions and test file opening
 - **debug_hpc_environment.py** - Comprehensive environment diagnostic tool
 
+## How to Cite This Package
+
+If you use this software in a publication, please cite the specific release/version you used.
+
+Suggested software citation:
+
+- Halverson, G. H. (2026). *EMIT-L2A-RFL* (Version 1.0.1) [Computer software]. GitHub. https://github.com/STARS-Data-Fusion/EMIT-L2A-RFL
+
+LaTeX (BibTeX) entry:
+
+```bibtex
+@software{halverson2026emit,
+   author  = {Halverson, Gregory H.},
+   title   = {{EMIT-L2A-RFL}},
+   year    = {2026},
+   version = {1.0.1},
+   url     = {https://github.com/STARS-Data-Fusion/EMIT-L2A-RFL},
+   note    = {Computer software}
+}
+```
+
+For machine-readable citation metadata, see `CITATION.cff` in this repository.
+
 ## References
 
 * Green, R. O., et al. (2023). Earth Surface Mineral Dust Source Investigation (EMIT) L2A Estimated Surface Reflectance and Uncertainty and Masks, Version 1. [Data set]. NASA EOSDIS Land Processes DAAC. [doi:10.5067/EMIT/EMITL2ARFL.001](https://doi.org/10.5067/EMIT/EMITL2ARFL.001)
